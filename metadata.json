@@ -1,0 +1,5 @@
+{
+  "name": "PawPal",
+  "description": "A full-stack concept app connecting Pet Owners with Pet Lovers using Google Gemini for intelligent care instructions and safety insights.",
+  "requestFramePermissions": []
+}
