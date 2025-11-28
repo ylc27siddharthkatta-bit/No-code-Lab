@@ -313,6 +313,21 @@ class MockStore {
     this.save('pets', pets);
   }
 
+  updatePet(pet: Pet) {
+    const pets = this.getPets();
+    const index = pets.findIndex(p => p.id === pet.id);
+    if (index !== -1) {
+      pets[index] = pet;
+      this.save('pets', pets);
+    }
+  }
+
+  deletePet(id: string) {
+    let pets = this.getPets();
+    pets = pets.filter(p => p.id !== id);
+    this.save('pets', pets);
+  }
+
   // --- Bookings ---
   getBookings(): Booking[] {
     return this.load<Booking[]>('bookings', MOCK_BOOKINGS);

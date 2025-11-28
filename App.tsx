@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation, useParams } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { User, UserRole, Pet, Booking, BookingStatus, SOPItem, Message, Review } from './types';
 import { db } from './services/mockStore';
 import { generatePetSOPs, summarizeChat, getSafetyTip } from './services/geminiService';
 import { 
   Menu, X, Heart, Shield, Calendar, MessageSquare, 
-  LogOut, Plus, Search, MapPin, Check, XCircle, Sparkles, User as UserIcon, Star, Send, ArrowLeft
+  LogOut, Plus, Search, MapPin, Check, XCircle, Sparkles, User as UserIcon, Star, Send, ArrowLeft,
+  Trash2, Edit2, Save
 } from 'lucide-react';
 
 // --- Components ---
@@ -551,11 +552,16 @@ const Dashboard = ({ user }: { user: User }) => {
 
 const PetDetails = ({ user }: { user: User }) => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [pet, setPet] = useState<Pet | undefined>(undefined);
   const [showBookModal, setShowBookModal] = useState(false);
   const [safetyTip, setSafetyTip] = useState<string>('');
   const [reviews, setReviews] = useState<Review[]>([]);
   const [petOwner, setPetOwner] = useState<User | undefined>(undefined);
+  
+  // Edit State
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFormData, setEditFormData] = useState<Partial<Pet>>({});
 
   useEffect(() => {
     if (id) {
@@ -567,6 +573,7 @@ const PetDetails = ({ user }: { user: User }) => {
           getSafetyTip(p, 'Pet Sitter').then(setSafetyTip);
         }
         setReviews(db.getReviews(p.ownerId));
+        setEditFormData(p);
       }
     }
   }, [id, user]);
@@ -589,6 +596,33 @@ const PetDetails = ({ user }: { user: User }) => {
     window.location.hash = '#/bookings';
   };
 
+  const handleEditToggle = () => {
+    if(isEditing) {
+        // Cancel edit
+        setIsEditing(false);
+        setEditFormData(pet || {});
+    } else {
+        setIsEditing(true);
+    }
+  };
+
+  const handleSaveEdit = () => {
+    if(!pet) return;
+    const updatedPet = { ...pet, ...editFormData } as Pet;
+    db.updatePet(updatedPet);
+    setPet(updatedPet);
+    setIsEditing(false);
+    alert('Pet updated successfully!');
+  };
+
+  const handleDelete = () => {
+    if(!pet) return;
+    if(window.confirm(`Are you sure you want to delete ${pet.name}? This cannot be undone.`)) {
+        db.deletePet(pet.id);
+        navigate('/dashboard');
+    }
+  };
+
   if (!pet) return <div className="p-8">Pet not found</div>;
 
   return (
@@ -596,32 +630,105 @@ const PetDetails = ({ user }: { user: User }) => {
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         <div className="md:flex">
           <div className="md:flex-shrink-0 relative">
-            <img className="h-64 w-full object-cover md:h-full md:w-96" src={pet.imageUrl} alt={pet.name} />
+             <img className="h-64 w-full object-cover md:h-full md:w-96" src={pet.imageUrl} alt={pet.name} />
           </div>
           <div className="p-8 w-full">
             <div className="flex justify-between items-start">
-              <div>
-                <div className="uppercase tracking-wide text-sm text-brand-500 font-semibold">{pet.species}</div>
-                <h1 className="mt-1 text-3xl font-extrabold text-gray-900">{pet.name}</h1>
-                <p className="mt-2 text-gray-500">{pet.breed} • {pet.age} years old</p>
-                {petOwner && (
+              <div className="w-full">
+                {isEditing ? (
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500">Name</label>
+                                <input type="text" className="w-full border rounded p-1" value={editFormData.name} onChange={e => setEditFormData({...editFormData, name: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500">Species</label>
+                                <select className="w-full border rounded p-1" value={editFormData.species} onChange={e => setEditFormData({...editFormData, species: e.target.value})}>
+                                    <option>Dog</option>
+                                    <option>Cat</option>
+                                    <option>Bird</option>
+                                    <option>Rabbit</option>
+                                    <option>Fish</option>
+                                    <option>Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                             <label className="block text-xs font-medium text-gray-500">Breed</label>
+                             <input type="text" className="w-full border rounded p-1" value={editFormData.breed} onChange={e => setEditFormData({...editFormData, breed: e.target.value})} />
+                        </div>
+                         <div>
+                             <label className="block text-xs font-medium text-gray-500">Age</label>
+                             <input type="number" className="w-full border rounded p-1" value={editFormData.age} onChange={e => setEditFormData({...editFormData, age: parseInt(e.target.value)})} />
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        <div className="uppercase tracking-wide text-sm text-brand-500 font-semibold">{pet.species}</div>
+                        <h1 className="mt-1 text-3xl font-extrabold text-gray-900">{pet.name}</h1>
+                        <p className="mt-2 text-gray-500">{pet.breed} • {pet.age} years old</p>
+                    </>
+                )}
+
+                {!isEditing && petOwner && (
                     <div className="mt-2 flex items-center text-sm text-gray-500">
                         <UserIcon className="h-4 w-4 mr-1" />
                         Owner: {petOwner.name}
                     </div>
                 )}
               </div>
-              {user.role === UserRole.LOVER && (
-                <button 
-                  onClick={() => setShowBookModal(true)}
-                  className="bg-brand-600 text-white px-6 py-2 rounded-full font-medium shadow hover:bg-brand-700 transition"
-                >
-                  Request Booking
-                </button>
-              )}
+              
+              <div className="flex flex-col space-y-2 ml-4">
+                {user.role === UserRole.LOVER && (
+                    <button 
+                    onClick={() => setShowBookModal(true)}
+                    className="bg-brand-600 text-white px-6 py-2 rounded-full font-medium shadow hover:bg-brand-700 transition"
+                    >
+                    Request
+                    </button>
+                )}
+                {user.id === pet.ownerId && (
+                    <div className="flex space-x-2">
+                        {isEditing ? (
+                            <>
+                                <button onClick={handleSaveEdit} className="p-2 bg-green-100 text-green-600 rounded-full hover:bg-green-200" title="Save">
+                                    <Save className="w-5 h-5" />
+                                </button>
+                                <button onClick={handleEditToggle} className="p-2 bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200" title="Cancel">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <button onClick={handleEditToggle} className="p-2 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100" title="Edit">
+                                    <Edit2 className="w-5 h-5" />
+                                </button>
+                                <button onClick={handleDelete} className="p-2 bg-red-50 text-red-600 rounded-full hover:bg-red-100" title="Delete">
+                                    <Trash2 className="w-5 h-5" />
+                                </button>
+                            </>
+                        )}
+                    </div>
+                )}
+              </div>
             </div>
 
-            <p className="mt-4 text-gray-600">{pet.description}</p>
+            {isEditing ? (
+                <div className="mt-4">
+                    <label className="block text-xs font-medium text-gray-500">Description</label>
+                    <textarea 
+                        className="w-full border rounded p-2" 
+                        rows={4}
+                        value={editFormData.description}
+                        onChange={e => setEditFormData({...editFormData, description: e.target.value})}
+                    />
+                     <label className="block text-xs font-medium text-gray-500 mt-2">Image URL</label>
+                     <input type="text" className="w-full border rounded p-1" value={editFormData.imageUrl} onChange={e => setEditFormData({...editFormData, imageUrl: e.target.value})} />
+                </div>
+            ) : (
+                <p className="mt-4 text-gray-600">{pet.description}</p>
+            )}
 
             {/* AI Generated SOPs */}
             <div className="mt-8">
